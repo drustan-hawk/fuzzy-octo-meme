@@ -60,6 +60,7 @@ class ImageListModel(QtCore.QAbstractListModel):
         self._worker = ThumbnailWorker()
         self._worker.moveToThread(self._thread)
         self._thread.started.connect(self._worker.load_next)
+        self._thread.finished.connect(self._worker.deleteLater)
         self.request_thumbnail.connect(self._worker.enqueue)
         self._worker.loaded.connect(self._on_loaded)
 

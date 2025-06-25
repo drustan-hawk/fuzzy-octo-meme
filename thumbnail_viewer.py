@@ -84,6 +84,7 @@ class ThumbnailDelegate(QtWidgets.QStyledItemDelegate):
         pixmap_rect.moveCenter(option.rect.center())
         painter.drawPixmap(pixmap_rect.topLeft(), pixmap)
 
+
         # Draw a semi-transparent text background at the bottom
         text = str(index.data(QtCore.Qt.DisplayRole))
         metrics = QtGui.QFontMetrics(painter.font())

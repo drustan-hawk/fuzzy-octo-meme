@@ -4,4 +4,6 @@ version = "0.1.0"
 description = "PySide6 based image thumbnail viewer"
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = ["PySide6"]
+dependencies = [
+    "pyside6>=6.9.1",
+]

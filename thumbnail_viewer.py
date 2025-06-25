@@ -90,11 +90,11 @@ class ThumbnailDelegate(QtWidgets.QStyledItemDelegate):
         text_height = metrics.lineSpacing() + 4
         text_rect = QtCore.QRect(
             pixmap_rect.left(),
-            pixmap_rect.bottom() - text_height,
+            pixmap_rect.bottom() - text_height + 1,
             pixmap_rect.width(),
             text_height,
         )
-        text_rect = text_rect.marginsRemoved(QtCore.QMargins(2, 2, 2, 2))
+        # text_rect = text_rect.marginsRemoved(QtCore.QMargins(2, 2, 2, 2))
 
         bg_color = option.palette.window().color()
         bg_color.setAlpha(160)

@@ -1,6 +1,7 @@
 # Fuzzy Octo Meme
 
-A simple PySide6 thumbnail viewer.
+A simple PySide6 thumbnail viewer. Thumbnails are loaded using a background
+thread so the UI remains responsive.
 
 ## Usage
 

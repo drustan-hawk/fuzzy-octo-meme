@@ -88,8 +88,12 @@ class ThumbnailDelegate(QtWidgets.QStyledItemDelegate):
         text = str(index.data(QtCore.Qt.DisplayRole))
         metrics = QtGui.QFontMetrics(painter.font())
         text_height = metrics.lineSpacing() + 4
-        text_rect = QtCore.QRect(option.rect)
-        text_rect.setTop(option.rect.bottom() - text_height)
+        text_rect = QtCore.QRect(
+            pixmap_rect.left(),
+            pixmap_rect.bottom() - text_height,
+            pixmap_rect.width(),
+            text_height,
+        )
         text_rect = text_rect.marginsRemoved(QtCore.QMargins(2, 2, 2, 2))
 
         bg_color = option.palette.window().color()

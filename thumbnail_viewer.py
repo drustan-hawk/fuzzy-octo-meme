@@ -2,6 +2,10 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable
+import queue
+
+# Thumbnail size used throughout the application
+THUMBNAIL_SIZE = QtCore.QSize(128, 128)
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
@@ -14,12 +18,51 @@ class ImageItem:
     tags: set[str] = field(default_factory=set)
 
 
+class ThumbnailLoader(QtCore.QThread):
+    """Thread that loads thumbnails asynchronously."""
+
+    loaded = QtCore.Signal(int, QtGui.QPixmap)
+
+    def __init__(self, parent: QtCore.QObject | None = None) -> None:
+        super().__init__(parent)
+        self._queue: "queue.Queue[tuple[int, Path]]" = queue.Queue()
+        self._running = True
+
+    def submit(self, row: int, path: Path) -> None:
+        """Queue an image path for loading."""
+        self._queue.put((row, path))
+
+    def run(self) -> None:  # type: ignore[override]
+        while self._running:
+            try:
+                row, path = self._queue.get(timeout=0.1)
+            except queue.Empty:
+                continue
+            pixmap = QtGui.QPixmap(str(path))
+            if not pixmap.isNull():
+                pixmap = pixmap.scaled(
+                    THUMBNAIL_SIZE,
+                    QtCore.Qt.KeepAspectRatio,
+                    QtCore.Qt.SmoothTransformation,
+                )
+            self.loaded.emit(row, pixmap)
+
+    def stop(self) -> None:
+        self._running = False
+
+
 class ImageListModel(QtCore.QAbstractListModel):
     """List model that stores :class:`ImageItem` instances."""
 
     def __init__(self, items: Iterable[ImageItem] | None = None, parent: QtCore.QObject | None = None) -> None:
         super().__init__(parent)
         self._items: list[ImageItem] = list(items) if items else []
+        self._thumbnails: list[QtGui.QPixmap | None] = [None] * len(self._items)
+        self.placeholder = QtGui.QPixmap(THUMBNAIL_SIZE)
+        self.placeholder.fill(QtGui.QColor("lightgray"))
+        self.loader = ThumbnailLoader(self)
+        self.loader.loaded.connect(self._on_loaded)
+        self.loader.start()
 
     def rowCount(self, parent: QtCore.QModelIndex | QtCore.QPersistentModelIndex | None = None) -> int:  # type: ignore[override]
         return len(self._items)
@@ -33,14 +76,10 @@ class ImageListModel(QtCore.QAbstractListModel):
         if role == QtCore.Qt.DisplayRole:
             return item.path.name
         if role == QtCore.Qt.DecorationRole:
-            pixmap = QtGui.QPixmap(str(item.path))
-            if pixmap.isNull():
-                return None
-            return pixmap.scaled(
-                ThumbnailViewer.THUMBNAIL_SIZE,
-                QtCore.Qt.KeepAspectRatio,
-                QtCore.Qt.SmoothTransformation,
-            )
+            pixmap = self._thumbnails[index.row()]
+            if pixmap is None:
+                return self.placeholder
+            return pixmap
         if role == QtCore.Qt.UserRole:
             return item
         return None
@@ -54,10 +93,21 @@ class ImageListModel(QtCore.QAbstractListModel):
 
         self.beginResetModel()
         self._items = [ImageItem(path=path) for path in paths]
+        self._thumbnails = [None] * len(self._items)
         self.endResetModel()
+
+        for row, path in enumerate(paths):
+            self.loader.submit(row, path)
 
     def image_at(self, row: int) -> ImageItem:
         return self._items[row]
+
+    @QtCore.Slot(int, QtGui.QPixmap)
+    def _on_loaded(self, row: int, pixmap: QtGui.QPixmap) -> None:
+        if 0 <= row < len(self._thumbnails):
+            self._thumbnails[row] = pixmap
+            index = self.index(row)
+            self.dataChanged.emit(index, index, [QtCore.Qt.DecorationRole])
 
 
 class ThumbnailDelegate(QtWidgets.QStyledItemDelegate):
@@ -112,7 +162,6 @@ class ThumbnailDelegate(QtWidgets.QStyledItemDelegate):
 class ThumbnailViewer(QtWidgets.QWidget):
     """Widget that shows thumbnails for image files in a directory."""
 
-    THUMBNAIL_SIZE = QtCore.QSize(128, 128)
     IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"}
 
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
@@ -122,7 +171,7 @@ class ThumbnailViewer(QtWidgets.QWidget):
         self.model = ImageListModel(parent=self)
         self.list_view = QtWidgets.QListView(self)
         self.list_view.setViewMode(QtWidgets.QListView.IconMode)
-        self.list_view.setIconSize(self.THUMBNAIL_SIZE)
+        self.list_view.setIconSize(THUMBNAIL_SIZE)
         self.list_view.setResizeMode(QtWidgets.QListView.Adjust)
         self.list_view.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
         self.list_view.setModel(self.model)

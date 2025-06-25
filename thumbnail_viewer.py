@@ -60,6 +60,50 @@ class ImageListModel(QtCore.QAbstractListModel):
         return self._items[row]
 
 
+class ThumbnailDelegate(QtWidgets.QStyledItemDelegate):
+    """Delegate to display thumbnails with overlaid file paths."""
+
+    def paint(
+        self,
+        painter: QtGui.QPainter,
+        option: QtWidgets.QStyleOptionViewItem,
+        index: QtCore.QModelIndex,
+    ) -> None:
+        pixmap = index.data(QtCore.Qt.DecorationRole)
+        if not isinstance(pixmap, QtGui.QPixmap):
+            super().paint(painter, option, index)
+            return
+
+        painter.save()
+
+        if option.state & QtWidgets.QStyle.State_Selected:
+            painter.fillRect(option.rect, option.palette.highlight())
+
+        # Center the pixmap within the available rect
+        pixmap_rect = pixmap.rect()
+        pixmap_rect.moveCenter(option.rect.center())
+        painter.drawPixmap(pixmap_rect.topLeft(), pixmap)
+
+        # Draw a semi-transparent text background at the bottom
+        text = str(index.data(QtCore.Qt.DisplayRole))
+        metrics = QtGui.QFontMetrics(painter.font())
+        text_height = metrics.lineSpacing() + 4
+        text_rect = QtCore.QRect(option.rect)
+        text_rect.setTop(option.rect.bottom() - text_height)
+        text_rect = text_rect.marginsRemoved(QtCore.QMargins(2, 2, 2, 2))
+
+        bg_color = option.palette.window().color()
+        bg_color.setAlpha(160)
+        painter.fillRect(text_rect, bg_color)
+
+        elided = metrics.elidedText(text, QtCore.Qt.ElideRight, text_rect.width())
+        painter.setPen(option.palette.windowText().color())
+        painter.drawText(text_rect, QtCore.Qt.AlignVCenter | QtCore.Qt.AlignLeft, elided)
+
+        painter.restore()
+
+
+
 class ThumbnailViewer(QtWidgets.QWidget):
     """Widget that shows thumbnails for image files in a directory."""
 
@@ -77,6 +121,7 @@ class ThumbnailViewer(QtWidgets.QWidget):
         self.list_view.setResizeMode(QtWidgets.QListView.Adjust)
         self.list_view.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
         self.list_view.setModel(self.model)
+        self.list_view.setItemDelegate(ThumbnailDelegate(self.list_view))
         layout.addWidget(self.list_view)
 
     def choose_folder(self) -> None:
